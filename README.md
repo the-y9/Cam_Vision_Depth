@@ -13,8 +13,9 @@ This project demonstrates a simple computer vision application that captures vid
 
 1. **Clone the Repository**
    ```bash
-   git clone <your-repo-url>
-   cd <your-repo-name>
+   git clone https://github.com/the-y9/Vision_Depth.git
+   cd Vision_Depth
+
    ```
 
 2. **Set Up a Virtual Environment** (optional but recommended)
