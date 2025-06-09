@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Depth Estimation</title>
+</head>
+<body>
+    <h1>Estimate Depth from Image</h1>
+    <form id="uploadForm" enctype="multipart/form-data">
+        <input type="file" name="image" accept="image/*" required>
+        <button type="submit">Estimate from Image</button>
+    </form>
+
+    <script>
+    document.getElementById('uploadForm').addEventListener('submit', async function(event) {
+        event.preventDefault();
+
+        const formData = new FormData(this);
+
+        const response = await fetch('/estimate_image', {
+            method: 'POST',
+            body: formData
+        });
+
+        if (response.ok) {
+            const blob = await response.blob();
+            const url = URL.createObjectURL(blob);
+            window.open(url, '_blank');  // Open in a new tab
+        } else {
+            alert("Failed to estimate depth.");
+        }
+    });
+    </script>
+
+    
+    <h1>Live Depth Estimation Stream (Client Webcam)</h1>
+    <video id="webcam" autoplay playsinline width="320" height="240" style="border:1px solid #ccc;"></video><br>
+
+    <button id="startBtn" onclick="startStream()">Start Depth Stream</button>
+    <button id="stopBtn" onclick="stopStream()" disabled>Stop Depth Stream</button>
+
+    <h3>Processed Depth Image:</h3>
+    <img id="depthStream" width="320" height="240" style="border:1px solid #ccc;" />
+
+    <script>
+        const video = document.getElementById('webcam');
+        const depthImg = document.getElementById('depthStream');
+        const startBtn = document.getElementById('startBtn');
+        const stopBtn = document.getElementById('stopBtn');
+
+        let stream = null;
+        let intervalId = null;
+
+        async function startStream() {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                video.srcObject = stream;
+
+                startBtn.disabled = true;
+                stopBtn.disabled = false;
+
+                const canvas = document.createElement('canvas');
+                canvas.width = 320;
+                canvas.height = 240;
+                const ctx = canvas.getContext('2d');
+
+                intervalId = setInterval(() => {
+                    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    canvas.toBlob(async (blob) => {
+                        const formData = new FormData();
+                        formData.append('frame', blob, 'frame.jpg');
+
+                        try {
+                            const response = await fetch('/process_frame', {
+                                method: 'POST',
+                                body: formData
+                            });
+
+                            if (response.ok) {
+                                const processedBlob = await response.blob();
+                                const url = URL.createObjectURL(processedBlob);
+                                depthImg.src = url;
+                            }
+                        } catch (err) {
+                            console.error('Error sending frame:', err);
+                        }
+                    }, 'image/jpeg');
+                }, 200); // send frame every 1 second
+            } catch (err) {
+                alert('Error accessing webcam: ' + err.message);
+            }
+        }
+
+        function stopStream() {
+            if (intervalId) {
+                clearInterval(intervalId);
+                intervalId = null;
+            }
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+                stream = null;
+            }
+            video.srcObject = null;
+            depthImg.src = '';
+
+            startBtn.disabled = false;
+            stopBtn.disabled = true;
+        }
+    </script>
+</body>
+</html>

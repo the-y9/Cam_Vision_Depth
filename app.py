@@ -1,14 +1,11 @@
 import cv2
 import torch
-import matplotlib.pyplot as plt
-
 
 def initialize_midas(model_type='MiDaS_small'):
     """
-    # Load the MiDaS model from the torch hub.
+    Load the MiDaS model from the torch hub.
     """
     midas = torch.hub.load('intel-isl/MiDaS', model_type)
-    midas.to('cpu')
     midas.eval()
     return midas
 
@@ -21,64 +18,72 @@ def initialize_transform():
     return transforms.small_transform
 
 
-def display_prediction(frame, output, window_name='CV2Frame'):
+def display_prediction(frame, depth_map):
     """
-    Display the original frame and the prediction using OpenCV and Matplotlib.
+    Display original RGB frame and depth prediction side-by-side using OpenCV.
     """
-    cv2.imshow(window_name, frame)
-    plt.imshow(output, cmap='viridis')  # 'viridis' provides a good color map for depth
-    plt.pause(0.00001)
+    # Normalize the depth map to 0-255 and apply a colormap
+    depth_normalized = cv2.normalize(depth_map, None, 0, 255, cv2.NORM_MINMAX)
+    depth_colored = cv2.applyColorMap(depth_normalized.astype('uint8'), cv2.COLORMAP_MAGMA)
+
+    # Show both the original frame and depth map
+    cv2.imshow('RGB Frame', frame)
+    cv2.imshow('Depth Map', depth_colored)
 
 
 def main():
-    # Initialize MiDaS model and transform
-    midas = initialize_midas()
+    # Set device once
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    # Initialize model and transform
+    midas = initialize_midas().to(device)
     transform = initialize_transform()
 
-    # Open video capture (webcam)
+    # Start webcam
     cap = cv2.VideoCapture(0)
     if not cap.isOpened():
-        raise Exception("Failed to open webcam.")
+        raise RuntimeError("Unable to access the webcam.")
 
     try:
         while True:
-            # Capture frame
             ret, frame = cap.read()
             if not ret:
                 break
 
-            # Convert frame to RGB
-            img = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+            # Resize for performance (optional)
+            resized_frame = cv2.resize(frame, (320, 240))
 
-            # Apply transformation
-            imgbatch = transform(img).to('cpu')
+            # Convert to RGB
+            img_rgb = cv2.cvtColor(resized_frame, cv2.COLOR_BGR2RGB)
 
-            # Make prediction
+            # Prepare image batch
+            input_batch = transform(img_rgb).to(device)
+
+            # Inference
             with torch.no_grad():
-                prediction = midas(imgbatch)
+                prediction = midas(input_batch)
                 prediction = torch.nn.functional.interpolate(
-                    prediction.unsqueeze(1),  # Add a channel
-                    size=img.shape[:2],  # Match input size
-                    mode='bicubic',
-                    align_corners=False
+                    prediction.unsqueeze(1),
+                    size=img_rgb.shape[:2],
+                    mode="bicubic",
+                    align_corners=False,
                 ).squeeze()
 
-                output = prediction.cpu().numpy()
+                depth_map = prediction.cpu().numpy()
 
-            # Display results
-            display_prediction(frame, output)
+            # Display depth
+            display_prediction(resized_frame, depth_map)
 
-            # Exit on 'q' key
+            # Exit on 'q'
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
-    except Exception as e:
-        print(f'Error: {e}')            
-    # finally:
-        # Clean up resources
-    cap.release()
-    cv2.destroyAllWindows()
-    plt.close()  # Ensure Matplotlib resources are cleaned up
 
+    except Exception as e:
+        print(f"Error: {e}")
+
+    finally:
+        cap.release()
+        cv2.destroyAllWindows()
 
 if __name__ == "__main__":
     main()
