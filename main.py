@@ -22,6 +22,7 @@ def initialize_midas():
         midas = torch.hub.load('intel-isl/MiDaS', 'MiDaS_small', trust_repo=True).to(device)
         midas.eval()
         transform = torch.hub.load('intel-isl/MiDaS', 'transforms', trust_repo=True).small_transform
+        print("Model and transforms loaded successfully.")
     except Exception as e:
         print(f"MODEL ERROR: {e}")
         midas = None
@@ -29,6 +30,9 @@ def initialize_midas():
 
 
 def estimate_depth(img):
+    while midas is None or transform is None:
+        print("Waiting for model to load...")
+        initialize_midas()
     img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     input_batch = transform(img_rgb).to(device)
 
@@ -57,7 +61,6 @@ def index():
 
 @app.route('/estimate_image', methods=['POST'])
 def estimate_image():
-    initialize_midas()
 
     if 'image' not in request.files:
         return redirect(url_for('index'))
