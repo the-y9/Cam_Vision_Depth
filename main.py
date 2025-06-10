@@ -13,12 +13,14 @@ app = Flask(__name__)
 # Ensure upload folder exists
 UPLOAD_FOLDER = 'uploads'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+midas = None
+transform = None
 
 # Load model and transforms
 def initialize_midas():
-    global midas, transform, device
+    global midas, transform
     try:
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         midas = torch.hub.load('intel-isl/MiDaS', 'MiDaS_small', trust_repo=True).to(device)
         midas.eval()
         transform = torch.hub.load('intel-isl/MiDaS', 'transforms', trust_repo=True).small_transform
