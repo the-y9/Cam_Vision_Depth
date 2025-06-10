@@ -15,11 +15,15 @@ UPLOAD_FOLDER = 'uploads'
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 # Load model and transforms
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-midas = torch.hub.load('intel-isl/MiDaS', 'MiDaS_small', trust_repo=True).to(device)
-midas.eval()
-transform = torch.hub.load('intel-isl/MiDaS', 'transforms', trust_repo=True).small_transform
-
+try:
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    midas = torch.hub.load('intel-isl/MiDaS', 'MiDaS_small', trust_repo=True).to(device)
+    midas.eval()
+    transform = torch.hub.load('intel-isl/MiDaS', 'transforms', trust_repo=True).small_transform
+except Exception as e:
+    print(f"MODEL ERROR: {e}")
+    midas = None
+    transform = None
 
 def estimate_depth(img):
     img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
